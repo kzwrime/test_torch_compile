@@ -61,3 +61,5 @@ compile_commands.json
 *.egg-info/
 
 .venv
+torch_compile_output
+torch_compile_debug
