@@ -83,18 +83,38 @@ void myadd_out_cpu(const at::Tensor& a, const at::Tensor& b, at::Tensor& out) {
   }
 }
 
+// SiLU activation: x * sigmoid(x)
+at::Tensor mysilu_cpu(const at::Tensor& a) {
+  TORCH_CHECK(a.dtype() == at::kFloat);
+  TORCH_INTERNAL_ASSERT(a.device().type() == at::DeviceType::CPU);
+  at::Tensor a_contig = a.contiguous();
+  at::Tensor result = torch::empty(a_contig.sizes(), a_contig.options());
+  const float* a_ptr = a_contig.data_ptr<float>();
+  float* result_ptr = result.data_ptr<float>();
+
+  for (int64_t i = 0; i < result.numel(); i++) {
+    // SiLU(x) = x * sigmoid(x) = x / (1 + exp(-x))
+    float x = a_ptr[i];
+    float sigmoid_x = 1.0f / (1.0f + std::exp(-x));
+    result_ptr[i] = x * sigmoid_x;
+  }
+  return result;
+}
+
 // Defines the operators
 TORCH_LIBRARY(extension_cpp, m) {
   m.def("mymuladd(Tensor a, Tensor b, float c) -> Tensor");
   m.def("mymul(Tensor a, Tensor b) -> Tensor");
   m.def("myadd_out(Tensor a, Tensor b, Tensor(a!) out) -> ()");
+  m.def("mysilu(Tensor a) -> Tensor");
 }
 
-// Registers CPU implementations for mymuladd, mymul, myadd_out
+// Registers CPU implementations for mymuladd, mymul, myadd_out, mysilu
 TORCH_LIBRARY_IMPL(extension_cpp, CPU, m) {
   m.impl("mymuladd", &mymuladd_cpu);
   m.impl("mymul", &mymul_cpu);
   m.impl("myadd_out", &myadd_out_cpu);
+  m.impl("mysilu", &mysilu_cpu);
 }
 
 }

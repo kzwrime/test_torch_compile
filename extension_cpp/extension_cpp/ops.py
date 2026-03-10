@@ -1,7 +1,7 @@
 import torch
 from torch import Tensor
 
-__all__ = ["mymuladd", "myadd_out"]
+__all__ = ["mymuladd", "myadd_out", "mysilu"]
 
 
 def mymuladd(a: Tensor, b: Tensor, c: float) -> Tensor:
@@ -56,6 +56,35 @@ def _(a, b):
     torch._check(b.dtype == torch.float)
     torch._check(a.device == b.device)
     return torch.empty_like(a)
+
+
+def mysilu(a: Tensor) -> Tensor:
+    """SiLU activation function: x * sigmoid(x)"""
+    return torch.ops.extension_cpp.mysilu.default(a)
+
+
+@torch.library.register_fake("extension_cpp::mysilu")
+def _(a):
+    torch._check(a.dtype == torch.float)
+    return torch.empty_like(a)
+
+
+def _silu_backward(ctx, grad):
+    a, = ctx.saved_tensors
+    # SiLU backward: sigmoid(x) + x * sigmoid(x) * (1 - sigmoid(x))
+    #               = sigmoid(x) * (1 + x * (1 - sigmoid(x)))
+    sigmoid_a = torch.sigmoid(a)
+    grad_input = grad * sigmoid_a * (1 + a * (1 - sigmoid_a))
+    return grad_input
+
+
+def _silu_setup_context(ctx, inputs, output):
+    a, = inputs
+    ctx.save_for_backward(a)
+
+
+torch.library.register_autograd(
+    "extension_cpp::mysilu", _silu_backward, setup_context=_silu_setup_context)
 
 
 def myadd_out(a: Tensor, b: Tensor, out: Tensor) -> None:
