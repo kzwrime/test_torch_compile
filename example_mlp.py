@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Minimal MLP example with custom SiLU and torch.compile
+Minimal MLP example with custom mysilu_out and torch.compile
 """
 import torch
 import torch.nn as nn
@@ -14,7 +14,11 @@ class Layer(nn.Module):
         self.bias = nn.Parameter(torch.zeros(out_dim))
 
     def forward(self, x):
-        return ops.mysilu(torch.mm(x, self.weight.t()) + self.bias)
+        out = torch.mm(x, self.weight.t()) + self.bias
+        # Use mysilu_out for activation
+        activated = torch.empty_like(out)
+        ops.mysilu_out(out, activated)
+        return activated
 
 
 class MLP(nn.Module):
@@ -30,15 +34,28 @@ class MLP(nn.Module):
 
 if __name__ == "__main__":
     model = MLP()
-    model_compiled = torch.compile(model)
 
     x = torch.randn(5, 4)
-    print("Input:", x)
+    print("Input shape:", x.shape)
 
-    out = model_compiled(x)
+    # Run inference
+    out = model(x)
     print("Output:", out)
+    print("Output shape:", out.shape)
 
-    # Training step
-    loss = out.sum()
-    loss.backward()
-    print("Loss:", loss.item())
+    # Test with torch.compile
+    print("\nTesting torch.compile...")
+    model_compiled = torch.compile(model, mode="reduce-overhead")
+
+    # Warmup
+    for _ in range(3):
+        _ = model_compiled(x)
+
+    out_compiled = model_compiled(x)
+    print("Compiled output:", out_compiled)
+
+    # Verify outputs match
+    if torch.allclose(out, out_compiled, rtol=1e-4):
+        print("Outputs match: OK")
+    else:
+        print("Outputs differ!")
