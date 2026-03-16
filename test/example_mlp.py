@@ -51,7 +51,7 @@ if __name__ == "__main__":
     x_init = torch.randn(5, 4)
     
     # MultiMLP
-    multi_mlp = MultiMLP(num_mlps=3, in_out_dim=4, hidden_dim=8)
+    multi_mlp = MultiMLP(num_mlps=20, in_out_dim=4, hidden_dim=8)
 
     print("--- 开启 torch.compile 并支持动态形状 ---")
     # 仅使用显式标记的方式：不传入 dynamic=True，而是依赖 mark_dynamic 精确控制
